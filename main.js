@@ -4,8 +4,9 @@ const crypto = require('crypto');
 const mongoose = require("mongoose");
 const axios = require("axios");
 const {encryptPassword, setAuth} = require("./utils");
-
-const { User, Coin, Asset } = require('./models');
+var jwt = require('jsonwebtoken');
+var token = jwt.sign({ foo: 'bar' }, 'shhhhh');
+const { User, Coin, Asset,Key } = require('./models');
 const app = express();
 
 const port = 3000;
@@ -23,11 +24,21 @@ app.get('/coins', async(req, res) => {
     res.send(coins);
 })
 
+/**
+ * 완료
+ * name: string. 4-12글자. alphanumeric
+email: string. 100자 미만. email형식
+password: 8-16글자.
+회원가입 시 유저에게 10,000$를 제공한다.
+ */
 app.post('/register',
     body('email').isEmail().isLength({max:99}),
     body('name').custom((value)=>{
-        if(!/^[0-9a-zA-Z]+$/.test(value)||value.length<4||value.length>12) {
+        if(!/^[0-9a-zA-Z]+$/.test(value)) {
             throw new Error('이름은 대소문자, 숫자만 가능합니다.')
+            }
+        if(value.length<4||value.length>12){
+            throw new Error(' 이름은 4글자에서 12글자 까지 되어야 합니다.')
             }
         return true
     }),
@@ -47,7 +58,7 @@ app.post('/register',
         await user.save();
     } catch (err) {
         console.log(err.stack)
-        return res.status(400).send({error: 'email is duplicatedeeef'});
+        return res.status(400).send({error: 'Check your email, email may be duplicated'});
     }
 
     // 달러주기
@@ -63,6 +74,19 @@ app.post('/register',
     res.send({_id: user._id });
 })
 
+/**
+ * 진행중
+ * request
+email
+password
+로그인 시 마다 새로운 키 생성해서 저장
+response
+{key: {key}}
+key 제작 시 임의의 publicKey, secretKey를 생성 및 database에 저장. 클라이언트에게 두 값을 모두 전달. (로그인 시 publicKey, secretKey라는 키를 전달)
+클라이언트는 매 요청 제작시마다, token을 생성한다고 가정. data에는 퍼블릭 키를 전달, expiresIn은 60으로 설정하고 값 전달.
+jwt.sign({publicKey: 'pubKey' }, 'secretKey',  { expiresIn: 60 });
+서버에서는 publicKey로 등록된 secretKey를 검색하여, 해당 토큰이 1) 유효한지 2) 시간이 유효한지를 검사하여 token의 valid를 체크.
+ */
 app.post('/login',async (req, res )=> {
     const { email, password } = req.body;
     const encryptedPassword = encryptPassword(password);
@@ -70,7 +94,7 @@ app.post('/login',async (req, res )=> {
 
     if (user === null)
         return res.sendStatus(404);
-
+    const key = new Key({name: name, email: email, password: encryptedPassword});
     user.key = encryptPassword(crypto.randomBytes(20));
     await user.save();
 
