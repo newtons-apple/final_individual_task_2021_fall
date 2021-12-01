@@ -15,7 +15,7 @@ app.use(express.json());
 
 app.get('/',  async (req, res)=> {
 
-    res.send(apiRes.data);
+    // res.send(apiRes.data);
 })
 
 app.get('/coins', async(req, res) => {
@@ -24,9 +24,14 @@ app.get('/coins', async(req, res) => {
 })
 
 app.post('/register',
-    body('email').isEmail(),
-    body('name').isLength({ min: 5 }),
-    body('password').isLength({ min: 8 }),
+    body('email').isEmail().isLength({max:99}),
+    body('name').custom((value)=>{
+        if(!/^[0-9a-zA-Z]+$/.test(value)||value.length<4||value.length>12) {
+            throw new Error('이름은 대소문자, 숫자만 가능합니다.')
+            }
+        return true
+    }),
+    body('password').isLength({ min: 8,max:16 }),
     async(req, res) => {
 
     const errors = validationResult(req);
@@ -41,7 +46,8 @@ app.post('/register',
         user = new User({name: name, email: email, password: encryptedPassword});
         await user.save();
     } catch (err) {
-        return res.send({error: 'email is duplicated'}).status(400);
+        console.log(err.stack)
+        return res.status(400).send({error: 'email is duplicatedeeef'});
     }
 
     // 달러주기
