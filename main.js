@@ -3,9 +3,9 @@ const { body, validationResult } = require('express-validator');
 const crypto = require('crypto');
 const mongoose = require("mongoose");
 const axios = require("axios");
+const uuid = require('uuid');
 const {encryptPassword, setAuth} = require("./utils");
-var jwt = require('jsonwebtoken');
-var token = jwt.sign({ foo: 'bar' }, 'shhhhh');
+
 const { User, Coin, Asset,Key } = require('./models');
 const app = express();
 
@@ -15,14 +15,10 @@ app.use(express.urlencoded({extended: true}));
 app.use(express.json());
 
 app.get('/',  async (req, res)=> {
-
+    res.send({message:'welcome coin world'})
     // res.send(apiRes.data);
 })
 
-app.get('/coins', async(req, res) => {
-    const coins = await Coin.find({isActive: true});
-    res.send(coins);
-})
 
 /**
  * 완료
@@ -64,28 +60,23 @@ app.post('/register',
     // 달러주기
     const usdAsset = new Asset({name: 'USD', balance: 10000, user});
     await usdAsset.save();
+    //user.update({$push:{assets:usdAsset}})
+    
 
     const coins = await Coin.find({isActive: true});
     for(const coin of coins) {
         const asset = new Asset({name: coin.name, balance: 0, user});
         await asset.save();
+       // user.update({$push:{assets:asset}})
     }
 
     res.send({_id: user._id });
 })
 
 /**
- * 진행중
- * request
-email
-password
+ * 완료.
+ * request {email password}
 로그인 시 마다 새로운 키 생성해서 저장
-response
-{key: {key}}
-key 제작 시 임의의 publicKey, secretKey를 생성 및 database에 저장. 클라이언트에게 두 값을 모두 전달. (로그인 시 publicKey, secretKey라는 키를 전달)
-클라이언트는 매 요청 제작시마다, token을 생성한다고 가정. data에는 퍼블릭 키를 전달, expiresIn은 60으로 설정하고 값 전달.
-jwt.sign({publicKey: 'pubKey' }, 'secretKey',  { expiresIn: 60 });
-서버에서는 publicKey로 등록된 secretKey를 검색하여, 해당 토큰이 1) 유효한지 2) 시간이 유효한지를 검사하여 token의 valid를 체크.
  */
 app.post('/login',async (req, res )=> {
     const { email, password } = req.body;
@@ -93,19 +84,46 @@ app.post('/login',async (req, res )=> {
     const user = await User.findOne({email, password: encryptedPassword});
 
     if (user === null)
-        return res.sendStatus(404);
-    const key = new Key({name: name, email: email, password: encryptedPassword});
-    user.key = encryptPassword(crypto.randomBytes(20));
-    await user.save();
+        return res.status(404).send({error:'비밀번호가 틀립니다.'});
+    //새로운 키 생성해서 저장. 임의의 publickey ,secretkey 생성
+    const pubKey = encryptPassword(uuid.v4())
+    const secKey = encryptPassword(uuid.v4())
 
-    res.send({ key: user.key });
+    const key = new Key({publicKey:pubKey, secretKey:secKey,user:user});
+    await key.save()
+    res.send({ publicKey: pubKey,secretKey:secKey });
 })
+
+/**
+ * 완료
+ * 코인 목록 불러오는 함수
+ * response : ['bitcoin','ripple', 'dogecoin', 'ethereum']
+ */
+app.get('/coins',async(req,res)=>{
+    const coins = await Coin.find({isActive: true})
+    console.log(coins)
+    const coinNames = coins.map((coin)=>coin.name)
+    console.log(coinNames)
+    res.send({coins:coinNames})
+
+})
+
+/**
+ * 본인 자산 조회
+ * :auth_required
+ * response : {"usd": 3000, "bitcoin": 1, "ripple": 2, "dogecoin": 3, "ethereum": 4}
+ */
 
 app.get('/balance', setAuth, async (req, res) => {
     const user = req.user;
+    console.log('hihi')
+    try{
+        const assets = await Asset.find({ user });
+        res.send(assets);
+    }catch(err){
+        console.error(err)
+    }
 
-    const assets = await Asset.find({ user });
-    res.send(assets);
 });
 
 app.post('/coin/:coinName/buy', setAuth, async(req, res) => {

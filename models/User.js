@@ -5,7 +5,7 @@ const userSchema = new Schema({
     name: String,
     email: {type: String, unique: true, },
     password: String,
-    key:  [{ type: Schema.Types.ObjectId, ref: 'Key' }],
+    keys:  [{ type: Schema.Types.ObjectId, ref: 'Key' }],
     assets: [{ type: Schema.Types.ObjectId, ref: 'Asset' }],
 });
 
