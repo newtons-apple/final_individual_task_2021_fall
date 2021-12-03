@@ -7,7 +7,6 @@ const keySchema = new Schema({
     user: { type: Schema.Types.ObjectId, ref: 'User' },
 });
 
-keySchema.index({ publickey: 1}, { unique: true });
 const Key = mongoose.model('Key', keySchema);
 
 module.exports = Key;
